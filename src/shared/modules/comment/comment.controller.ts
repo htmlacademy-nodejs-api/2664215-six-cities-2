@@ -2,7 +2,6 @@ import { injectable, inject } from 'inversify';
 import type { Response } from 'express';
 
 import { CommentRdo } from './rdo/index.js';
-import { CommentService } from './comment-service.interface.js';
 import { Component } from '../../types/index.js';
 import { CreateCommentDto } from './dto/index.js';
 import {
@@ -10,10 +9,11 @@ import {
   HttpError,
   HttpMethod,
   ValidateDtoMiddleware,
-  type RequestWithBody,
+  type RequestWithBody, PrivateRouteMiddleware,
 } from '../../libs/rest/index.js';
 import { fillRdo } from '../../helpers/index.js';
 import { StatusCodes } from 'http-status-codes';
+import type { CommentService } from './comment-service.interface.js';
 import type { Logger } from '../../libs/logger/index.js';
 import type { OfferService } from '../offer/index.js';
 
@@ -31,11 +31,13 @@ export class CommentController extends BaseController {
   ) {
     super(logger);
     this.logger.info('Register routes for CommentController…');
+
     this.addRoute({
       path: '/',
       method: HttpMethod.Post,
       handler: this.create,
       middlewares: [
+        new PrivateRouteMiddleware(),
         new ValidateDtoMiddleware(CreateCommentDto),
       ]
     });
@@ -45,7 +47,7 @@ export class CommentController extends BaseController {
     req: RequestWithBody<CreateCommentDto>,
     res: Response
   ): Promise<void> {
-    const { body } = req;
+    const { body, tokenPayload } = req;
 
     const offerExists = await this.offerService.exists(body.offerId);
 
@@ -57,7 +59,7 @@ export class CommentController extends BaseController {
       );
     }
 
-    const comment = await this.commentService.createComment(body);
+    const comment = await this.commentService.createComment(body, tokenPayload.id);
     const commentRdo = fillRdo(CommentRdo, comment);
     this.created(res, commentRdo);
   }
